@@ -1,0 +1,20 @@
+{
+  "name": "cmon-certgen",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "directories": {
+    "bin": "./bin"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bunyan": "^1.8.12",
+    "sshpk": "^1.14.2",
+    "sshpk-agent": "^1.7.0",
+    "vasync": "^2.2.0"
+  }
+}

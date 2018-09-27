@@ -1,0 +1,81 @@
+#!/usr/bin/env node
+
+var mod_sshpk_agent = require('sshpk-agent');
+var mod_sshpk = require('sshpk');
+var mod_bunyan = require('bunyan');
+var mod_vasync = require('vasync');
+var mod_fs = require('fs');
+
+var log = mod_bunyan.createLogger({
+	name: 'certgen'
+});
+
+var agent = new mod_sshpk_agent.Client();
+var client;
+var certSignKey;
+var sslCert;
+var sslKey = mod_sshpk.generatePrivateKey('ecdsa');
+
+var keyId = process.env['SDC_KEY_ID'];
+if (keyId === undefined)
+	keyId = process.env['TRITON_KEY_ID'];
+var keyFp = mod_sshpk.parseFingerprint(keyId);
+
+var user = process.env['SDC_ACCOUNT'];
+if (user === undefined)
+	user = process.env['TRITON_ACCOUNT'];
+
+mod_vasync.pipeline({
+	funcs: [findSigningKey, signCert, writeFiles]
+}, function (err) {
+	if (err) {
+		log.error(err, 'failed');
+		process.exit(1);
+		return;
+	}
+});
+
+function findSigningKey(_, cb) {
+	agent.listKeys(function (err, keys) {
+		if (err) {
+			cb(err);
+			return;
+		}
+
+		certSignKey = keys.filter(function (k) {
+			return (keyFp.matches(k));
+		})[0];
+		if (!certSignKey) {
+			cb(new Error('Failed to find signing key which ' +
+			    'matches "' + keyId + '"'));
+			return;
+		}
+		cb();
+	});
+}
+
+function signCert(_, cb) {
+	var subj = mod_sshpk.identityFromDN('CN=' + user);
+	var fp = certSignKey.fingerprint('md5').toString('base64');
+	var issuer = mod_sshpk.identityFromDN('CN=' + fp);
+	var opts = {
+	    lifetime: 3600,
+	    purposes: ['signature', 'identity', 'clientAuth', 'joyentCmon']
+	};
+	agent.createCertificate(subj, sslKey, issuer, certSignKey,
+	    opts, function (err, cert) {
+		if (err) {
+			cb(err);
+			return;
+		}
+		sslCert = cert;
+		cb();
+	});
+}
+
+function writeFiles(_, cb) {
+	mod_fs.writeFileSync('prom-key.pem', sslKey.toString('pem'));
+	mod_fs.writeFileSync('prom-cert.pem', sslCert.toString('pem'));
+	cb();
+}
+
