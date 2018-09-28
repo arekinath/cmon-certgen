@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "bunyan": "^1.8.12",
+    "dashdash": "^1.14.1",
     "sshpk": "^1.14.2",
     "sshpk-agent": "^1.7.0",
     "vasync": "^2.2.0"
